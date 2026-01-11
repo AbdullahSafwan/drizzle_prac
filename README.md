@@ -1,58 +1,22 @@
-# Node.js TypeScript Express Boilerplate
+# Drizzle Practice App
 
-A modern, production-ready boilerplate for building Node.js applications with TypeScript and Express.
-
-## Features
-
-- **TypeScript** - Type-safe development with ES2020 support
-- **Express 5** - Fast, unopinionated web framework
-- **Security** - Helmet for security headers, CORS enabled
-- **Logging** - Morgan for HTTP request logging
-- **Code Quality** - ESLint and Prettier pre-configured
-- **Hot Reload** - Nodemon for automatic server restart during development
+A Node.js + TypeScript project demonstrating Drizzle ORM with PostgreSQL, featuring a complete REST API setup with Express.
 
 ## Prerequisites
 
 - Node.js (v18 or higher recommended)
 - npm or yarn
+- Docker and Docker Compose (for local PostgreSQL)
 
 ## Getting Started
 
-### 1. Use This Template
-
-There are two ways to use this boilerplate:
-
-#### Option A: Use as GitHub Template (Recommended)
-
-If this is hosted on GitHub, click the "Use this template" button to create a new repository with a clean git history.
-
-#### Option B: Clone and Reinitialize Git
-
-```bash
-# Clone the repository
-git clone <this-repo-url> my-new-project
-cd my-new-project
-
-# Remove the existing git history
-rm -rf .git
-
-# Initialize a new git repository
-git init
-git add .
-git commit -m "Initial commit from boilerplate"
-
-# Add your own remote repository
-git remote add origin <your-new-repo-url>
-git push -u origin main
-```
-
-### 2. Install Dependencies
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Configure Environment Variables
+### 2. Configure Environment Variables
 
 Create a `.env` file in the root directory:
 
@@ -60,15 +24,43 @@ Create a `.env` file in the root directory:
 cp .env.example .env
 ```
 
-Edit `.env` with your configuration:
+Edit `.env` with your database configuration:
 
 ```env
 PORT=8080
 NODE_ENV=development
-CORS_ORIGIN=http://localhost:3000
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+
+# Docker PostgreSQL credentials
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=drizzle_prac
+DB_PORT=5432
 ```
 
-### 4. Start Development Server
+### 3. Start PostgreSQL Database
+
+Using Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+### 4. Run Database Migrations
+
+Generate migrations from your schema:
+
+```bash
+npx drizzle-kit generate
+```
+
+Push migrations to the database:
+
+```bash
+npx drizzle-kit migrate
+```
+
+### 5. Start Development Server
 
 ```bash
 npm run dev
@@ -86,150 +78,234 @@ The server will start at `http://localhost:8080` (or your configured PORT).
 | `npm run lint` | Run ESLint to check code quality |
 | `npm run format:check` | Check code formatting with Prettier |
 | `npm run format:fix` | Auto-fix code formatting issues |
+| `npx drizzle-kit generate` | Generate migrations from schema changes |
+| `npx drizzle-kit migrate` | Apply migrations to database |
+| `npx drizzle-kit push` | Push schema directly to database (dev only) |
+| `npx drizzle-kit studio` | Open Drizzle Studio (database GUI) |
 
 ## Project Structure
 
 ```
-node_ts_template/
+drizzle_prac/
 ├── src/
 │   ├── app.ts              # Express app configuration
 │   ├── index.ts            # Server entry point
 │   ├── routes.ts           # API route definitions
-│   └── config/
-│       └── env.ts          # Environment configuration
+│   ├── config/
+│   │   ├── env.ts          # Environment configuration
+│   │   └── drizzle.ts      # Drizzle ORM client setup
+│   └── db/
+│       └── schema.ts       # Database schema definitions
+├── drizzle/                # Generated migrations
+│   ├── meta/               # Migration metadata
+│   └── *.sql               # SQL migration files
 ├── dist/                   # Compiled JavaScript (generated)
 ├── .env                    # Environment variables (create from .env.example)
+├── drizzle.config.ts       # Drizzle Kit configuration
+├── docker-compose.yml      # PostgreSQL container setup
 ├── tsconfig.json           # TypeScript configuration
 ├── eslint.config.mts       # ESLint configuration
 ├── .prettierrc             # Prettier configuration
 └── nodemon.json            # Nodemon configuration
 ```
 
-## Building Your Application
+## Working with Drizzle ORM
 
-### Adding New Routes
+### Database Schema
 
-1. Create a new route file in `src/routes/`:
+Define your database tables in [src/db/schema.ts](src/db/schema.ts):
 
 ```typescript
-// src/routes/users.ts
-import express from "express";
+import { integer, pgTable, varchar } from "drizzle-orm/pg-core";
 
-const userRouter = express.Router();
-
-userRouter.get("/", (req, res) => {
-  res.json({ users: [] });
+export const user = pgTable("user", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar({ length: 255 }).notNull(),
+  age: integer().notNull(),
+  email: varchar({ length: 255 }).notNull().unique(),
 });
-
-userRouter.post("/", (req, res) => {
-  // Handle user creation
-  res.status(201).json({ message: "User created" });
-});
-
-export default userRouter;
 ```
 
-2. Import and use in [src/routes.ts](src/routes.ts):
+### Running Migrations
+
+After modifying your schema, generate and apply migrations:
+
+```bash
+# Generate migration files
+npx drizzle-kit generate
+
+# Apply migrations to database
+npx drizzle-kit migrate
+```
+
+For development, you can push schema changes directly without migrations:
+
+```bash
+npx drizzle-kit push
+```
+
+### Drizzle Studio
+
+View and edit your database with Drizzle Studio GUI:
+
+```bash
+npx drizzle-kit studio
+```
+
+Opens a web interface at `https://local.drizzle.studio`
+
+### Database Queries
+
+Use Drizzle ORM in your routes:
 
 ```typescript
 import express from "express";
-import userRouter from "./routes/users";
+import db from "./config/drizzle";
+import { user } from "./db/schema";
+import { eq } from "drizzle-orm";
 
 const router = express.Router();
 
-router.use("/api/v1/users", userRouter);
+// Get all users
+router.get("/users", async (req, res) => {
+  const users = await db.select().from(user);
+  res.json(users);
+});
+
+// Get user by id
+router.get("/users/:id", async (req, res) => {
+  const [foundUser] = await db
+    .select()
+    .from(user)
+    .where(eq(user.id, parseInt(req.params.id)));
+
+  if (!foundUser) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  res.json(foundUser);
+});
+
+// Create user
+router.post("/users", async (req, res) => {
+  const [newUser] = await db
+    .insert(user)
+    .values(req.body)
+    .returning();
+
+  res.status(201).json(newUser);
+});
+
+// Update user
+router.put("/users/:id", async (req, res) => {
+  const [updatedUser] = await db
+    .update(user)
+    .set(req.body)
+    .where(eq(user.id, parseInt(req.params.id)))
+    .returning();
+
+  res.json(updatedUser);
+});
+
+// Delete user
+router.delete("/users/:id", async (req, res) => {
+  await db
+    .delete(user)
+    .where(eq(user.id, parseInt(req.params.id)));
+
+  res.status(204).send();
+});
 
 export default router;
 ```
 
-### Adding Middleware
+### Adding New Tables
 
-Add custom middleware in [src/app.ts](src/app.ts):
+1. Add table definition to [src/db/schema.ts](src/db/schema.ts):
 
 ```typescript
-// Example: Request timing middleware
-app.use((req, res, next) => {
-  const start = Date.now();
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    console.log(`${req.method} ${req.path} took ${duration}ms`);
-  });
-  next();
+export const posts = pgTable("posts", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  title: varchar({ length: 255 }).notNull(),
+  content: text().notNull(),
+  userId: integer("user_id").notNull().references(() => user.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 ```
 
-### Environment Configuration
+2. Generate and apply migration:
 
-Add new config values in [src/config/env.ts](src/config/env.ts):
+```bash
+npx drizzle-kit generate --name=add-posts-table
+npx drizzle-kit migrate
+```
+
+### Common Drizzle Patterns
+
+**Relationships:**
 
 ```typescript
-interface Config {
-  port: number;
-  nodeEnv: string;
-  databaseUrl: string;  // Add new config
-}
+// One-to-many
+const usersWithPosts = await db.query.user.findMany({
+  with: {
+    posts: true,
+  },
+});
 
-const config: Config = {
-  port: Number(process.env.PORT) || 8080,
-  nodeEnv: process.env.NODE_ENV || "development",
-  databaseUrl: process.env.DATABASE_URL || "",
-};
+// Joins
+const result = await db
+  .select()
+  .from(user)
+  .leftJoin(posts, eq(posts.userId, user.id));
 ```
 
-### Adding Services/Controllers
-
-Organize your code with services and controllers:
-
-```
-src/
-├── controllers/
-│   └── userController.ts
-├── services/
-│   └── userService.ts
-├── models/
-│   └── user.ts
-└── middleware/
-    └── auth.ts
-```
-
-### Error Handling
-
-Add a global error handler in [src/app.ts](src/app.ts):
+**Filtering:**
 
 ```typescript
-// After all routes
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    error: {
-      message: err.message || "Internal Server Error",
-    },
-  });
+import { eq, gt, like, and, or } from "drizzle-orm";
+
+// Simple filter
+await db.select().from(user).where(eq(user.email, "test@example.com"));
+
+// Multiple conditions
+await db
+  .select()
+  .from(user)
+  .where(and(gt(user.age, 18), like(user.name, "%John%")));
+```
+
+**Transactions:**
+
+```typescript
+await db.transaction(async (tx) => {
+  await tx.insert(user).values({ name: "John", age: 30, email: "john@example.com" });
+  await tx.insert(posts).values({ title: "First post", content: "...", userId: 1 });
 });
 ```
 
-## Production Deployment
+## Docker Setup
 
-### 1. Build the Application
+### Local Development with Docker
 
-```bash
-npm run build
-```
-
-### 2. Set Production Environment
+Start PostgreSQL container:
 
 ```bash
-export NODE_ENV=production
-export PORT=8080
+docker-compose up -d
 ```
 
-### 3. Start the Server
+Stop container:
 
 ```bash
-npm start
+docker-compose down
 ```
 
-### Docker Deployment (Optional)
+View logs:
+
+```bash
+docker-compose logs -f postgres
+```
+
+### Full Application Docker Deployment
 
 Create a `Dockerfile`:
 
@@ -249,43 +325,84 @@ EXPOSE 8080
 CMD ["npm", "start"]
 ```
 
-## CORS Configuration
-
-CORS is pre-configured in [src/app.ts](src/app.ts). Modify as needed:
-
-```typescript
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || true,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Cache-Control"],
-  }),
-);
-```
-
-## Testing
-
-Add your preferred testing framework:
+Build and run:
 
 ```bash
-# Example with Jest
-npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
+docker build -t drizzle-app .
+docker run -p 8080:8080 --env-file .env drizzle-app
 ```
 
-## Common Use Cases
+## Production Deployment
 
-### REST API
-Perfect as-is! Add your routes, controllers, and services.
+### 1. Run Migrations
 
-### GraphQL API
-Install Apollo Server and integrate with Express.
+Ensure migrations are applied to production database:
 
-### Microservice
-Use as a base for individual microservices with additional messaging libraries.
+```bash
+npx drizzle-kit migrate
+```
 
-### Monorepo
-Extend structure with `packages/` directory and workspace configuration.
+### 2. Build the Application
+
+```bash
+npm run build
+```
+
+### 3. Set Production Environment
+
+```bash
+export NODE_ENV=production
+export PORT=8080
+export DATABASE_URL=postgresql://user:password@prod-host:5432/dbname
+```
+
+### 4. Start the Server
+
+```bash
+npm start
+```
+
+## Troubleshooting
+
+### Migration Errors
+
+If you encounter table rename errors with `drizzle-kit generate`:
+
+1. Check the snapshot files in `drizzle/meta/`
+2. If renaming tables, use `--custom` flag to write manual SQL:
+   ```bash
+   npx drizzle-kit generate --custom
+   ```
+3. For development, use `push` to sync schema directly:
+   ```bash
+   npx drizzle-kit push
+   ```
+
+### Database Connection Issues
+
+Verify your `DATABASE_URL` format:
+```
+postgresql://username:password@host:port/database
+```
+
+Test connection:
+```bash
+psql $DATABASE_URL
+```
+
+### TypeScript Errors
+
+Regenerate types after schema changes:
+```bash
+npm run build
+```
+
+## Useful Resources
+
+- [Drizzle ORM Documentation](https://orm.drizzle.team/docs/overview)
+- [Drizzle Kit Documentation](https://orm.drizzle.team/kit-docs/overview)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Express.js Documentation](https://expressjs.com/)
 
 ## Contributing
 
