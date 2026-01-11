@@ -8,4 +8,9 @@ export default defineConfig({
   dbCredentials: {
     url: config.databaseUrl,
   },
+  migrations:{
+    prefix: 'timestamp',
+    table: "__drizzle_migrations__",
+    schema: "public",
+  }
 });
