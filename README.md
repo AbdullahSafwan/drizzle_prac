@@ -70,18 +70,18 @@ The server will start at `http://localhost:8080` (or your configured PORT).
 
 ## Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Compile TypeScript to JavaScript in `dist/` |
-| `npm start` | Run production server from compiled code |
-| `npm run lint` | Run ESLint to check code quality |
-| `npm run format:check` | Check code formatting with Prettier |
-| `npm run format:fix` | Auto-fix code formatting issues |
-| `npx drizzle-kit generate` | Generate migrations from schema changes |
-| `npx drizzle-kit migrate` | Apply migrations to database |
-| `npx drizzle-kit push` | Push schema directly to database (dev only) |
-| `npx drizzle-kit studio` | Open Drizzle Studio (database GUI) |
+| Command                    | Description                                 |
+| -------------------------- | ------------------------------------------- |
+| `npm run dev`              | Start development server with hot reload    |
+| `npm run build`            | Compile TypeScript to JavaScript in `dist/` |
+| `npm start`                | Run production server from compiled code    |
+| `npm run lint`             | Run ESLint to check code quality            |
+| `npm run format:check`     | Check code formatting with Prettier         |
+| `npm run format:fix`       | Auto-fix code formatting issues             |
+| `npx drizzle-kit generate` | Generate migrations from schema changes     |
+| `npx drizzle-kit migrate`  | Apply migrations to database                |
+| `npx drizzle-kit push`     | Push schema directly to database (dev only) |
+| `npx drizzle-kit studio`   | Open Drizzle Studio (database GUI)          |
 
 ## Project Structure
 
@@ -188,10 +188,7 @@ router.get("/users/:id", async (req, res) => {
 
 // Create user
 router.post("/users", async (req, res) => {
-  const [newUser] = await db
-    .insert(user)
-    .values(req.body)
-    .returning();
+  const [newUser] = await db.insert(user).values(req.body).returning();
 
   res.status(201).json(newUser);
 });
@@ -209,9 +206,7 @@ router.put("/users/:id", async (req, res) => {
 
 // Delete user
 router.delete("/users/:id", async (req, res) => {
-  await db
-    .delete(user)
-    .where(eq(user.id, parseInt(req.params.id)));
+  await db.delete(user).where(eq(user.id, parseInt(req.params.id)));
 
   res.status(204).send();
 });
@@ -228,7 +223,9 @@ export const posts = pgTable("posts", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   title: varchar({ length: 255 }).notNull(),
   content: text().notNull(),
-  userId: integer("user_id").notNull().references(() => user.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => user.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 ```
@@ -253,10 +250,7 @@ const usersWithPosts = await db.query.user.findMany({
 });
 
 // Joins
-const result = await db
-  .select()
-  .from(user)
-  .leftJoin(posts, eq(posts.userId, user.id));
+const result = await db.select().from(user).leftJoin(posts, eq(posts.userId, user.id));
 ```
 
 **Filtering:**
@@ -381,11 +375,13 @@ If you encounter table rename errors with `drizzle-kit generate`:
 ### Database Connection Issues
 
 Verify your `DATABASE_URL` format:
+
 ```
 postgresql://username:password@host:port/database
 ```
 
 Test connection:
+
 ```bash
 psql $DATABASE_URL
 ```
@@ -393,6 +389,7 @@ psql $DATABASE_URL
 ### TypeScript Errors
 
 Regenerate types after schema changes:
+
 ```bash
 npm run build
 ```
